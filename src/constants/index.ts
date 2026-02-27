@@ -1,0 +1,23 @@
+export const DEFAULT_INTERESTS = [
+    "Coding", "Editing", "Cooking", "Sports", "Gaming",
+    "Music", "Trading", "Writing", "Design", "Fitness", "Business"
+];
+
+export const MBTI_TYPES = [
+    "INTJ", "INTP", "ENTJ", "ENTP",
+    "INFJ", "INFP", "ENFJ", "ENFP",
+    "ISTJ", "ISFJ", "ESTJ", "ESFJ",
+    "ISTP", "ISFP", "ESTP", "ESFP"
+];
+
+export const SOCIAL_PREFS = [
+    "More Introverted", "Balanced", "More Extroverted"
+];
+
+export const WORK_UPDATES = [
+    "You settled into a steady rhythm at work.",
+    "Cross-functional meetings took priority this quarter.",
+    "You picked up some basic organizational skills.",
+    "A quiet quarter at the main job provided stability.",
+    "You received a minor piece of positive feedback."
+];
