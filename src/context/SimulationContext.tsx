@@ -9,9 +9,20 @@ function generateId() {
   return Math.random().toString(36).substring(2, 9);
 }
 
+export type Phase = "work" | "freeTime" | "sleep";
+
 interface SimulationContextType {
   quarter: number;
   setQuarter: React.Dispatch<React.SetStateAction<number>>;
+  
+  phase: Phase;
+  setPhase: React.Dispatch<React.SetStateAction<Phase>>;
+  isSimulating: boolean;
+  setIsSimulating: React.Dispatch<React.SetStateAction<boolean>>;
+  workProgress: number;
+  setWorkProgress: React.Dispatch<React.SetStateAction<number>>;
+  workDone: boolean;
+  setWorkDone: React.Dispatch<React.SetStateAction<boolean>>;
   
   // Player Profile
   name: string; setName: React.Dispatch<React.SetStateAction<string>>;
@@ -37,7 +48,10 @@ interface SimulationContextType {
   newActivityCategory: ActivityCategory; setNewActivityCategory: React.Dispatch<React.SetStateAction<ActivityCategory>>;
   showFriendPanel: boolean; setShowFriendPanel: React.Dispatch<React.SetStateAction<boolean>>;
   newFriendName: string; setNewFriendName: React.Dispatch<React.SetStateAction<string>>;
+  newFriendGender: "Male" | "Female"; setNewFriendGender: React.Dispatch<React.SetStateAction<"Male" | "Female">>;
   newFriendJob: string; setNewFriendJob: React.Dispatch<React.SetStateAction<string>>;
+  newFriendDesc: string; setNewFriendDesc: React.Dispatch<React.SetStateAction<string>>;
+  newSkillName: string; setNewSkillName: React.Dispatch<React.SetStateAction<string>>;
 
   aiResult: AIResult | null; setAiResult: React.Dispatch<React.SetStateAction<AIResult | null>>;
 
@@ -54,6 +68,7 @@ interface SimulationContextType {
   addCustomActivity: () => void;
   updateAllocation: (id: string, delta: number) => void;
   handleAddFriend: () => void;
+  handleAddSkillTag: () => void;
   startSimulation: () => void;
   proceedToNext: () => void;
   handleRestart: () => void;
@@ -66,6 +81,10 @@ const SimulationContext = createContext<SimulationContextType | undefined>(undef
 export function SimulationProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [quarter, setQuarter] = useState<number>(1);
+  const [phase, setPhase] = useState<Phase>("work");
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [workProgress, setWorkProgress] = useState<number>(0);
+  const [workDone, setWorkDone] = useState<boolean>(false);
   
   // Profile
   const [name, setName] = useState("");
@@ -93,7 +112,11 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   // Friend Form
   const [showFriendPanel, setShowFriendPanel] = useState(false);
   const [newFriendName, setNewFriendName] = useState("");
+  const [newFriendGender, setNewFriendGender] = useState<"Male" | "Female">("Male");
   const [newFriendJob, setNewFriendJob] = useState("");
+  const [newFriendDesc, setNewFriendDesc] = useState("");
+
+  const [newSkillName, setNewSkillName] = useState("");
 
   const [aiResult, setAiResult] = useState<AIResult | null>(null);
 
@@ -167,10 +190,20 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
 
   const handleAddFriend = () => {
     if (!newFriendName.trim() || !newFriendJob.trim()) return;
-    setFriends([...friends, { id: generateId(), name: newFriendName, job: newFriendJob }]);
+    if (friends.length >= 5) return; // Max 5 friends
+    setFriends([...friends, { id: generateId(), name: newFriendName, gender: newFriendGender, job: newFriendJob, desc: newFriendDesc.trim() || undefined }]);
     setNewFriendName("");
+    setNewFriendGender("Male");
     setNewFriendJob("");
+    setNewFriendDesc("");
     setShowFriendPanel(false);
+  };
+
+  const handleAddSkillTag = () => {
+    if (!newSkillName.trim()) return;
+    if (skillTags.includes(newSkillName.trim())) return;
+    setSkillTags([...skillTags, newSkillName.trim()]);
+    setNewSkillName("");
   };
 
   const totalAllocated = activities.reduce((sum, a) => sum + a.allocated, 0);
@@ -201,6 +234,10 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
 
   const value = {
     quarter, setQuarter,
+    phase, setPhase,
+    isSimulating, setIsSimulating,
+    workProgress, setWorkProgress,
+    workDone, setWorkDone,
     name, setName, age, setAge, gender, setGender,
     occupationType, setOccupationType, occupationDetail, setOccupationDetail,
     bio, setBio, mbti, setMbti, socialPref, setSocialPref,
@@ -208,11 +245,12 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
     skillTags, setSkillTags, friends, setFriends, workUpdate, setWorkUpdate,
     activities, setActivities, history, setHistory, unlockedOpportunity, setUnlockedOpportunity,
     newActivityName, setNewActivityName, newActivityCategory, setNewActivityCategory,
-    showFriendPanel, setShowFriendPanel, newFriendName, setNewFriendName, newFriendJob, setNewFriendJob,
+    showFriendPanel, setShowFriendPanel, newFriendName, setNewFriendName, newFriendGender, setNewFriendGender, newFriendJob, setNewFriendJob, newFriendDesc, setNewFriendDesc,
+    newSkillName, setNewSkillName,
     aiResult, setAiResult,
     isStudent, totalAllocated, remainingUnits, hobbyUnits, socialUnits, canProceed,
     toggleInterest, addCustomInterest, startQuarter1, addCustomActivity, updateAllocation,
-    handleAddFriend, startSimulation, proceedToNext, handleRestart
+    handleAddFriend, handleAddSkillTag, startSimulation, proceedToNext, handleRestart
   };
 
   return (

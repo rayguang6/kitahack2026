@@ -15,7 +15,7 @@ export function GameShell({ children }: { children: React.ReactNode }) {
   const isLanding = pathname === "/";
 
   return (
-    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-slate-900 flex flex-col font-sans">
+    <div className={`${isGameActive ? 'fixed inset-0 w-screen h-screen' : 'min-h-screen w-full'} overflow-hidden bg-slate-900 flex flex-col font-sans`}>
       {/* Dynamic Background Overlay */}
       {isLanding && (
         <div 
@@ -37,14 +37,14 @@ export function GameShell({ children }: { children: React.ReactNode }) {
 
       {/* Header HUD */}
       {isGameActive && (
-        <header className="relative z-50 flex items-center justify-between px-6 py-4 glass-morphism border-b border-slate-200 shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="bg-slate-900 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg">
-              <Zap className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+        <header className="relative z-50 flex items-center justify-between px-4 md:px-6 py-3 md:py-4 glass-morphism border-b border-slate-200 shrink-0">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="bg-slate-900 text-white w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center shadow-lg">
+              <Zap className="w-4 h-4 md:w-5 md:h-5 text-yellow-400 fill-yellow-400" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-900 leading-none">Freedom Path</h1>
-              <p className="text-[10px] font-semibold text-slate-500 mt-1">Life Simulation</p>
+              <h1 className="text-base md:text-lg font-bold tracking-tight text-slate-900 leading-none">Freedom Path</h1>
+              <p className="text-[10px] font-semibold text-slate-500 mt-0.5 md:mt-1">Life Simulation</p>
             </div>
           </div>
 
@@ -88,13 +88,13 @@ export function GameShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Content Area with Background Map */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden min-h-0">
         {/* 2D Map Background - Constrained to this area */}
         {isGameActive && <GameMap />}
         
         {/* Main Content Overlay */}
         <main className="absolute inset-0 z-10 overflow-hidden flex flex-col pointer-events-none">
-          <div className="pointer-events-auto flex-1 flex flex-col">
+          <div className="pointer-events-auto flex-1 flex flex-col min-h-0">
             {children}
           </div>
         </main>

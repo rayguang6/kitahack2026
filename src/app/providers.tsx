@@ -7,7 +7,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SimulationProvider>
       <GameShell>
-        <div className="flex-1 w-full h-full overflow-y-auto scroll-smooth flex flex-col">
+        <div className="flex-1 w-full min-h-0 flex flex-col">
           {children}
         </div>
       </GameShell>
