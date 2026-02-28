@@ -47,6 +47,8 @@ interface SimulationContextType {
   customInterest: string; setCustomInterest: React.Dispatch<React.SetStateAction<string>>;
 
   skillTags: string[]; setSkillTags: React.Dispatch<React.SetStateAction<string[]>>;
+  knowledgeTags: string[]; setKnowledgeTags: React.Dispatch<React.SetStateAction<string[]>>;
+  dreamPath: string; setDreamPath: React.Dispatch<React.SetStateAction<string>>;
   friends: Friend[]; setFriends: React.Dispatch<React.SetStateAction<Friend[]>>;
   workUpdate: string; setWorkUpdate: React.Dispatch<React.SetStateAction<string>>;
   activities: Activity[]; setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
@@ -115,6 +117,8 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   const [customInterest, setCustomInterest] = useState("");
 
   const [skillTags, setSkillTags] = useState<string[]>([]);
+  const [knowledgeTags, setKnowledgeTags] = useState<string[]>([]);
+  const [dreamPath, setDreamPath] = useState<string>("");
   const [friends, setFriends] = useState<Friend[]>([]);
   const [workUpdate, setWorkUpdate] = useState<string>("");
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -141,7 +145,8 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (pathname === "/game" && activities.length === 0) {
       // eslint-disable-next-line
-      setWorkUpdate(WORK_UPDATES[Math.floor(Math.random() * WORK_UPDATES.length)]);
+      const wu = WORK_UPDATES[Math.floor(Math.random() * WORK_UPDATES.length)];
+      setWorkUpdate(wu.message);
       
       const initialSuggestions: Activity[] = [];
       const coreSkill = skillTags.length > 0 ? skillTags[0] : "Productivity";
@@ -251,7 +256,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
     setQuarter(1);
     setName(""); setAge(""); setGender(""); setOccupationType(""); setOccupationDetail("");
     setBio(""); setMbti(""); setSocialPref(""); setInterests([]); setCustomInterest("");
-    setSkillTags([]); setFriends([]); setHistory([]); setUnlockedOpportunity(null);
+    setSkillTags([]); setKnowledgeTags([]); setDreamPath(""); setFriends([]); setHistory([]); setUnlockedOpportunity(null);
     setActivities([]);
   };
 
@@ -270,7 +275,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
     occupationType, setOccupationType, occupationDetail, setOccupationDetail,
     bio, setBio, mbti, setMbti, socialPref, setSocialPref,
     interests, setInterests, customInterest, setCustomInterest,
-    skillTags, setSkillTags, friends, setFriends, workUpdate, setWorkUpdate,
+    skillTags, setSkillTags, knowledgeTags, setKnowledgeTags, dreamPath, setDreamPath, friends, setFriends, workUpdate, setWorkUpdate,
     activities, setActivities, history, setHistory, unlockedOpportunity, setUnlockedOpportunity,
     newActivityName, setNewActivityName, newActivityCategory, setNewActivityCategory,
     showFriendPanel, setShowFriendPanel, newFriendName, setNewFriendName, newFriendGender, setNewFriendGender, newFriendJob, setNewFriendJob, newFriendDesc, setNewFriendDesc,

@@ -8,16 +8,22 @@ const genAI = new GoogleGenerativeAI(apiKey);
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { name, occupationType, occupationDetail, skills, friends, quarter, interests } = body;
+        const { name, occupationType, occupationDetail, skills, knowledgeTags, friends, quarter, interests, dreamPath } = body;
 
         const playerName = name || "the player";
         const playerOccupation = occupationDetail ? `${occupationDetail} (${occupationType})` : occupationType || "professional";
         const playerSkills = skills && skills.length > 0 ? skills.join(', ') : 'None specified';
+        const playerKnowledge = knowledgeTags && knowledgeTags.length > 0 ? knowledgeTags.join(', ') : 'None yet';
         const playerFriends = friends && friends.length > 0
             ? friends.map((f: { name: string; job: string }) => `${f.name} (${f.job})`).join(', ')
             : 'None';
         const playerInterests = interests && interests.length > 0 ? interests.join(', ') : 'Not specified';
         const quarterNum = quarter || 1;
+        const playerDreamPath = dreamPath || '';
+
+        const dreamPathContext = playerDreamPath
+            ? `Their current dream/goal is: "${playerDreamPath}". Bias suggestions toward this direction while keeping them realistic and achievable.`
+            : `They are still exploring and haven't set a specific goal yet. Suggest diverse directions to help them discover possibilities.`;
 
         const prompt = `You are an expert life coach helping ${playerName} discover their path to greater freedom and fulfillment.
 
@@ -25,15 +31,19 @@ Player Profile:
 - Name: ${playerName}
 - Occupation: ${playerOccupation}
 - Current Skills: ${playerSkills}
+- Domain Knowledge: ${playerKnowledge}
 - Interests: ${playerInterests}
 - Connections: ${playerFriends}
 - Current Quarter: Q${quarterNum}
 
+${dreamPathContext}
+
 Suggest exactly 3 macro-level, actionable quarterly projects or milestones that are:
-1. Highly relevant to ${playerName}'s specific occupation and interests
+1. Highly relevant to ${playerName}'s specific occupation, interests, AND domain knowledge
 2. Achievable as a side project or skill-building effort over one quarter (3 months)
 3. Substantially ambitious — not just reading a book (e.g. "Build a Portfolio Site", "Start a Freelance Service", "Launch a YouTube Channel", "Join a Trading Community")
 4. Progressing toward greater personal freedom/opportunities based on their profile
+${playerKnowledge !== 'None yet' ? `5. At least one suggestion should leverage their domain knowledge: ${playerKnowledge}` : ''}
 
 Each title must be ultra-short (max 5 words) and each type must be one of: coding, learning, social.
 Make them feel personal and specific to ${playerName}'s background — not generic advice anyone could get.`;

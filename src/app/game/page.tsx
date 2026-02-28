@@ -2,24 +2,29 @@
 
 import { useState, useEffect } from "react";
 import { useSimulation } from "@/context/SimulationContext";
-import { ActivityCategory, Activity } from "@/types";
+import { ActivityCategory, Activity, Opportunity, SuggestedPath } from "@/types";
 import { 
   Briefcase, Moon, Sun, Plus, Minus, UserPlus, Sparkles, Coffee, 
-  Users, GraduationCap, ChevronRight, Zap as LucideZap, ChevronDown, Trophy, RotateCcw
+  Users, GraduationCap, ChevronRight, Zap as LucideZap, ChevronDown, Trophy, RotateCcw,
+  BookOpen, Rocket, Compass, Target
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ActionMentor } from "@/components/Simulation/ActionMentor";
-import { SIMULATION_DURATION_MS } from "@/constants";
+import { SIMULATION_DURATION_MS, WORK_UPDATES, DREAM_AWARE_WORK_TIPS } from "@/constants";
 
 
 
 export default function GamePage() {
-  const [activeSidePanel, setActiveSidePanel] = useState<'social' | 'skills' | null>(null);
+  const [activeSidePanel, setActiveSidePanel] = useState<'social' | 'skills' | 'path' | null>(null);
   const [isSocialExpanded, setIsSocialExpanded] = useState(true);
   const [simulationQueue, setSimulationQueue] = useState<Activity[]>([]);
   const [currentSimulationIndex, setCurrentSimulationIndex] = useState(0);
-  const [quarterHistory, setQuarterHistory] = useState<Array<{ quarter: number; activities: Activity[]; aiResult: { narrative: string; insight: string; suggestion: string } | null }>>([]);
+  const [quarterHistory, setQuarterHistory] = useState<Array<{ quarter: number; activities: Activity[]; aiResult: { narrative: string; insight: string; suggestion: string; knowledge_gained?: string[]; opportunities?: Opportunity[] } | null }>>([]);
   const [showEndGame, setShowEndGame] = useState(false);
+  const [customDreamPath, setCustomDreamPath] = useState("");
+  const [workSkillsGained, setWorkSkillsGained] = useState<string[]>([]);
+  const [workKnowledgeGained, setWorkKnowledgeGained] = useState<string[]>([]);
+  const [workDreamTip, setWorkDreamTip] = useState<string>("");
   
   const { 
     phase, setPhase,
@@ -32,7 +37,8 @@ export default function GamePage() {
     newActivityName, setNewActivityName, newActivityCategory, setNewActivityCategory, addCustomActivity,
     newFriendName, setNewFriendName, newFriendGender, setNewFriendGender, newFriendJob, setNewFriendJob, newFriendDesc, setNewFriendDesc, handleAddFriend,
     friends, 
-    skillTags, setSkillTags, newSkillName, setNewSkillName, handleAddSkillTag,
+    skillTags, setSkillTags, knowledgeTags, setKnowledgeTags, dreamPath, setDreamPath,
+    newSkillName, setNewSkillName, handleAddSkillTag,
     aiResult, setAiResult, setUnlockedOpportunity,
     gamePhase, setGamePhase, setAiActionChoices,
     selectedAction, setSelectedAction,
@@ -42,6 +48,32 @@ export default function GamePage() {
 
   const hasFriends = friends.length > 0;
   const effectiveCanProceed = remainingUnits === 0 && hobbyUnits >= 1 && (!hasFriends || socialUnits >= 1);
+
+  // Apply work skills/knowledge when work is completed (rare — most updates give nothing)
+  useEffect(() => {
+    if (workDone && phase === "work") {
+      const wu = WORK_UPDATES[Math.floor(Math.random() * WORK_UPDATES.length)];
+      // Only set if the update actually has a skill or knowledge (most don't)
+      const gainedSkills = wu.skill ? [wu.skill] : [];
+      const gainedKnowledge = wu.knowledge ? [wu.knowledge] : [];
+      setWorkSkillsGained(gainedSkills);
+      setWorkKnowledgeGained(gainedKnowledge);
+      if (wu.skill) {
+        setSkillTags((prev: string[]) => Array.from(new Set([...prev, wu.skill!])));
+      }
+      if (wu.knowledge) {
+        setKnowledgeTags((prev: string[]) => Array.from(new Set([...prev, wu.knowledge!])));
+      }
+
+      // Dream-path-aware tip
+      if (dreamPath && DREAM_AWARE_WORK_TIPS[dreamPath]) {
+        const tips = DREAM_AWARE_WORK_TIPS[dreamPath];
+        setWorkDreamTip(tips[Math.floor(Math.random() * tips.length)]);
+      } else {
+        setWorkDreamTip("");
+      }
+    }
+  }, [workDone, phase]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -120,8 +152,10 @@ export default function GamePage() {
             occupationType,
             occupationDetail,
             skillTags,
+            knowledgeTags,
             friends,
             quarter,
+            dreamPath,
             activities: simulationQueue,
           })
         })
@@ -130,12 +164,29 @@ export default function GamePage() {
           const newResult = {
             narrative: data.narrative,
             insight: data.insight || (data.skills_improved?.length > 0 ? `Skills improved: ${data.skills_improved.join(', ')}` : 'You made steady progress this quarter.'),
-            suggestion: data.suggestion || 'Keep building momentum next quarter.'
+            suggestion: data.suggestion || 'Keep building momentum next quarter.',
+            knowledge_gained: data.knowledge_gained || [],
+            opportunities: data.opportunities || []
           };
-          setAiResult(newResult);
+          setAiResult({
+            ...newResult,
+            knowledge_gained: data.knowledge_gained,
+            suggested_paths: data.suggested_paths || [],
+            opportunities: data.opportunities?.map((opp: { title: string; description: string; reasoning: string; confidence: string; based_on?: { skills: string[]; knowledge: string[]; friends: string[] }; based_on_skills?: string[]; based_on_knowledge?: string[]; based_on_friends?: string[] }) => ({
+              ...opp,
+              based_on: opp.based_on || {
+                skills: opp.based_on_skills || [],
+                knowledge: opp.based_on_knowledge || [],
+                friends: opp.based_on_friends || []
+              }
+            }))
+          });
           setQuarterHistory(prev => [...prev, { quarter, activities: simulationQueue, aiResult: newResult }]);
           if (data.skills_improved) {
              setSkillTags((prev: string[]) => Array.from(new Set([...prev, ...data.skills_improved])));
+          }
+          if (data.knowledge_gained) {
+             setKnowledgeTags((prev: string[]) => Array.from(new Set([...prev, ...data.knowledge_gained])));
           }
         })
         .catch(err => {
@@ -161,6 +212,8 @@ export default function GamePage() {
   };
 
   const handleConsultAI = async () => {
+    // Don't overwrite gamePhase if simulation is already running
+    if (gamePhase === "simulating") return;
     setGamePhase("generating");
     try {
       const res = await fetch("/api/generate-actions", {
@@ -171,21 +224,25 @@ export default function GamePage() {
           occupationType,
           occupationDetail,
           skills: skillTags,
+          knowledgeTags,
           friends,
           quarter,
-          interests
+          interests,
+          dreamPath
         })
       });
       const data = await res.json();
+      // Only update gamePhase if we're not already simulating
+      // (the user may have started the simulation while the AI was generating)
       if (data.actions) {
         setAiActionChoices(data.actions);
-        setGamePhase("selecting_action");
+        setGamePhase(prev => prev === "simulating" ? prev : "selecting_action");
       } else {
-        setGamePhase("idle");
+        setGamePhase(prev => prev === "simulating" ? prev : "idle");
       }
     } catch (e) {
       console.error(e);
-      setGamePhase("idle");
+      setGamePhase(prev => prev === "simulating" ? prev : "idle");
     }
   };
 
@@ -393,6 +450,61 @@ export default function GamePage() {
               </div>
             )}
           </div>
+
+          {/* KNOWLEDGE SECTION */}
+          <div className="glass-morphism p-3 rounded-2xl border border-white/40 shadow-sm bg-white/70 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg shadow-inner bg-amber-100 text-amber-600">
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <span className="font-black text-slate-800 text-xs md:text-sm">Knowledge</span>
+            </div>
+            {knowledgeTags.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {knowledgeTags.map((knowledge, idx) => (
+                  <div 
+                    key={idx}
+                    className="px-2 py-1 bg-white/60 border border-amber-100/50 text-amber-700 text-[10px] font-bold rounded-lg shadow-sm flex items-center gap-1"
+                  >
+                    <span className="w-1 h-1 bg-amber-400 rounded-full" />
+                    {knowledge}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[9px] text-slate-400 font-bold italic">Gained from friends & activities</p>
+            )}
+          </div>
+
+          {/* DREAM PATH SECTION */}
+          <div className="glass-morphism p-3 rounded-2xl border border-white/40 shadow-sm bg-white/70 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg shadow-inner bg-purple-100 text-purple-600">
+                  <Target className="w-4 h-4" />
+                </div>
+                <span className="font-black text-slate-800 text-xs md:text-sm">Dream Path</span>
+              </div>
+              
+              <button 
+                onClick={() => {
+                  if (activeSidePanel !== 'path') setCustomDreamPath(dreamPath || "");
+                  setActiveSidePanel(p => p === 'path' ? null : 'path')
+                }}
+                className={`p-1.5 rounded-lg transition-all border shadow-sm ${activeSidePanel === 'path' ? 'bg-purple-500 text-white border-purple-500 hover:bg-purple-600' : 'bg-white text-slate-500 hover:bg-purple-50 hover:text-purple-600 border-white/60'}`}
+                title="Edit Dream Path"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            {dreamPath ? (
+              <div className="px-2 py-1.5 bg-white/60 border border-purple-100/50 text-purple-700 text-xs font-bold rounded-lg shadow-sm truncate">
+                {dreamPath}
+              </div>
+            ) : (
+              <p className="text-[9px] text-slate-400 font-bold italic">No specific path set.</p>
+            )}
+          </div>
         </div>
 
         {/* Side Panels Content */}
@@ -538,6 +650,62 @@ export default function GamePage() {
               </div>
             </motion.div>
           )}
+
+          {activeSidePanel === 'path' && (
+            <motion.div 
+              initial={{ opacity: 0, x: -20, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: -20, scale: 0.95 }}
+              className="pointer-events-auto glass-morphism p-4 md:p-6 rounded-2xl md:rounded-3xl border border-white/60 shadow-2xl bg-white/90 backdrop-blur-2xl w-[280px] md:w-[320px] mt-1 md:mt-2 max-h-[50vh] overflow-y-auto custom-scrollbar"
+            >
+              <h3 className="font-black text-slate-900 mb-4 md:mb-5 flex items-center gap-3">
+                <div className="bg-purple-100 p-2 rounded-xl text-purple-600 shadow-inner shrink-0">
+                  <Target className="w-5 h-5" />
+                </div>
+                Dream Path
+              </h3>
+
+              <div className="space-y-4 md:space-y-5">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Set Your Goal</label>
+                  <p className="text-[10px] text-slate-500 mb-2 ml-1">Type whatever you want to achieve!</p>
+                  <div className="relative group">
+                    <input 
+                      type="text" 
+                      placeholder="E.g. Become a YouTuber"
+                      value={customDreamPath}
+                      onChange={e => setCustomDreamPath(e.target.value)}
+                      onKeyDown={e => {
+                        if(e.key === 'Enter' && customDreamPath.trim()) {
+                          setDreamPath(customDreamPath.trim());
+                          setActiveSidePanel(null);
+                        }
+                      }}
+                      className="w-full px-4 py-3 pr-10 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 outline-none text-sm transition-all shadow-sm group-hover:border-slate-300"
+                    />
+                    <button 
+                      onClick={() => {
+                        setDreamPath(customDreamPath.trim());
+                        setActiveSidePanel(null);
+                      }}
+                      disabled={!customDreamPath.trim()}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-slate-900 text-white rounded-xl hover:bg-purple-600 transition-colors disabled:opacity-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {dreamPath && (
+                    <button 
+                      onClick={() => { setDreamPath(""); setCustomDreamPath(""); setActiveSidePanel(null); }}
+                      className="mt-3 text-[10px] font-bold text-red-500 hover:text-red-700 ml-1 underline"
+                    >
+                      Clear Goal / Back to Exploring
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 
@@ -605,6 +773,36 @@ export default function GamePage() {
                       </p>
                     </div>
                   </motion.div>
+
+                  {/* Work Gains & Dream Tips */}
+                  {(workSkillsGained.length > 0 || workKnowledgeGained.length > 0) && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="flex flex-wrap gap-2 mb-4 md:mb-6"
+                    >
+                      {workSkillsGained.map((s, i) => (
+                         <div key={`ws-${i}`} className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 animate-pulse">
+                           <LucideZap className="w-3.5 h-3.5" /> + {s}
+                         </div>
+                      ))}
+                      {workKnowledgeGained.map((k, i) => (
+                         <div key={`wk-${i}`} className="px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 animate-pulse">
+                           <BookOpen className="w-3.5 h-3.5" /> + {k}
+                         </div>
+                      ))}
+                    </motion.div>
+                  )}
+
+                  {workDreamTip && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 md:p-4 bg-purple-50 border border-purple-100 rounded-xl w-full flex items-center gap-3 shadow-sm mb-4 md:mb-6 text-purple-800 text-xs md:text-sm font-medium"
+                    >
+                      {workDreamTip}
+                    </motion.div>
+                  )}
 
                   <button
                     onClick={handleNextPhase}
@@ -777,6 +975,39 @@ export default function GamePage() {
                         </div>
                       </div>
 
+                      {/* Dream Path Selector (Only if not set) */}
+                      {!dreamPath && (
+                        <div className="bg-purple-50/50 p-4 rounded-xl md:rounded-2xl border border-purple-100 shadow-sm mt-2">
+                          <label className="text-xs font-black text-purple-600 uppercase tracking-wider block mb-2 flex items-center gap-2">
+                            <Target className="w-4 h-4" /> Focus Your Journey (Optional)
+                          </label>
+                          <p className="text-xs text-purple-800 mb-3 font-medium">
+                            Set a goal to get better, tailored advice. It's okay to stay &quot;undecided&quot; and explore!
+                          </p>
+                          <div className="flex flex-col sm:flex-row gap-2 w-full">
+                            <input
+                              type="text"
+                              placeholder="Type your dream (e.g. Open a Cafe...)"
+                              value={customDreamPath}
+                              onChange={e => setCustomDreamPath(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && customDreamPath.trim()) setDreamPath(customDreamPath.trim());
+                              }}
+                              className="px-3 py-2 bg-white border border-purple-200 rounded-xl text-xs md:text-sm font-bold text-slate-700 outline-none focus:border-purple-500 flex-1 w-full"
+                            />
+                            <button
+                              onClick={() => {
+                                if (customDreamPath.trim()) setDreamPath(customDreamPath.trim());
+                              }}
+                              disabled={!customDreamPath.trim()}
+                              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl transition-colors disabled:opacity-50 text-xs font-bold shrink-0"
+                            >
+                              Set Path
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Soft hint if player has friends but no social allocation */}
                       {!effectiveCanProceed && hasFriends && socialUnits === 0 && remainingUnits === 0 && (
                         <p className="text-center text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-xl py-2 px-3">
@@ -843,6 +1074,83 @@ export default function GamePage() {
                         </div>
                       </div>
 
+                      {/* NEW: Knowledge Gained */}
+                      {aiResult.knowledge_gained && aiResult.knowledge_gained.length > 0 && (
+                        <div className="bg-amber-50 border border-amber-200 p-4 md:p-5 rounded-xl md:rounded-2xl flex items-start gap-3 md:gap-4 shadow-sm">
+                          <BookOpen className="w-5 h-5 md:w-6 md:h-6 text-amber-500 shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="text-xs font-black text-amber-600 uppercase tracking-wider mb-1">Knowledge Acquired</h4>
+                            <p className="text-slate-800 font-bold text-xs md:text-sm">
+                              You gained domain knowledge in: 
+                              {aiResult.knowledge_gained.map((k: string, i: number) => (
+                                <span key={i} className="text-amber-700 bg-amber-100 flex-wrap px-2 py-0.5 rounded ml-1 mb-1 inline-block">{k}</span>
+                              ))}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* NEW: Opportunities */}
+                      {aiResult.opportunities && aiResult.opportunities.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-black text-pink-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                            <Rocket className="w-4 h-4" /> Recommended Opportunity
+                          </h4>
+                          {aiResult.opportunities.map((opp: any, idx: number) => (
+                            <div key={idx} className="bg-gradient-to-br from-pink-50 to-orange-50 p-4 md:p-5 rounded-xl md:rounded-2xl border border-pink-200 shadow-sm">
+                              <div className="flex justify-between items-start mb-2">
+                                <h5 className="font-black text-slate-800 text-lg">{opp.title}</h5>
+                                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg ${opp.confidence === 'high' ? 'bg-emerald-100 text-emerald-700' : opp.confidence === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'}`}>
+                                  {opp.confidence} match
+                                </span>
+                              </div>
+                              <p className="text-slate-700 font-medium text-sm mb-3">{opp.description}</p>
+                              <div className="bg-white/60 p-3 rounded-xl border border-pink-100 text-xs text-slate-600 mb-3 italic">
+                                &quot;{opp.reasoning}&quot;
+                              </div>
+                              
+                              {/* Why it matches */}
+                              <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+                                {opp.based_on?.skills?.map((s: string, i: number) => (
+                                  <span key={`s-${i}`} className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md flex items-center gap-1"><LucideZap className="w-3 h-3"/> {s}</span>
+                                ))}
+                                {opp.based_on?.knowledge?.map((k: string, i: number) => (
+                                  <span key={`k-${i}`} className="bg-amber-100 text-amber-700 px-2 py-1 rounded-md flex items-center gap-1"><BookOpen className="w-3 h-3"/> {k}</span>
+                                ))}
+                                {opp.based_on?.friends?.map((f: string, i: number) => (
+                                  <span key={`f-${i}`} className="bg-pink-100 text-pink-700 px-2 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3"/> {f}</span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* NEW: Suggested Paths (if no dream path) */}
+                      {!dreamPath && aiResult.suggested_paths && aiResult.suggested_paths.length > 0 && (
+                        <div className="bg-purple-50 p-4 rounded-xl md:rounded-2xl border border-purple-200 shadow-sm">
+                           <h4 className="text-xs font-black text-purple-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                             <Compass className="w-4 h-4" /> AI Suggested Paths
+                           </h4>
+                           <div className="space-y-3">
+                             {aiResult.suggested_paths.map((p: any, i: number) => (
+                               <div key={i} className="bg-white p-3 rounded-xl border border-purple-100 flex flex-col gap-2">
+                                 <div className="flex justify-between items-center">
+                                   <span className="font-bold text-slate-800">{p.path}</span>
+                                   <button 
+                                     onClick={() => setDreamPath(p.path)}
+                                     className="text-[10px] font-black uppercase bg-purple-100 text-purple-700 hover:bg-purple-600 hover:text-white px-3 py-1.5 rounded-lg transition-colors"
+                                   >
+                                     Adopt Path
+                                   </button>
+                                 </div>
+                                 <p className="text-xs text-slate-600">{p.reasoning}</p>
+                               </div>
+                             ))}
+                           </div>
+                        </div>
+                      )}
+
                       {aiResult.unlockedOpportunity && (
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }}
@@ -861,24 +1169,14 @@ export default function GamePage() {
                   )}
 
                   <div className="flex flex-col gap-3">
-                    {/* Primary: keep going or complete */}
-                    {quarter < 3 ? (
-                      <button
-                        onClick={handleNextPhase}
-                        disabled={!aiResult}
-                        className="w-full disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 transition-all shadow-xl hover:shadow-2xl shadow-indigo-600/30 text-base md:text-lg"
-                      >
-                        Continue to Q{quarter + 1} <Sun className="w-5 h-5 md:w-6 md:h-6" />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleEndGame}
-                        disabled={!aiResult}
-                        className="w-full disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 transition-all shadow-xl hover:shadow-2xl shadow-emerald-600/30 text-base md:text-lg"
-                      >
-                        Complete Journey & See Summary <Trophy className="w-5 h-5 md:w-6 md:h-6" />
-                      </button>
-                    )}
+                    {/* Primary: keep going infinitely */}
+                    <button
+                      onClick={handleNextPhase}
+                      disabled={!aiResult}
+                      className="w-full disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 transition-all shadow-xl hover:shadow-2xl shadow-indigo-600/30 text-base md:text-lg"
+                    >
+                      Continue to Q{quarter + 1} <Sun className="w-5 h-5 md:w-6 md:h-6" />
+                    </button>
 
                     {/* Secondary: voluntary end */}
                     <button
@@ -927,6 +1225,41 @@ export default function GamePage() {
                       <p className="text-slate-400 text-sm italic">No skills tracked — add them from the Skills panel next time!</p>
                     )}
                   </div>
+
+                  {/* Knowledge Gained */}
+                  {knowledgeTags.length > 0 && (
+                    <div className="mb-5 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+                      <h3 className="text-xs font-black text-amber-500 uppercase tracking-wider mb-2">📚 Domain Knowledge</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {knowledgeTags.map((knowledge, i) => (
+                            <span key={i} className="px-3 py-1.5 bg-white border border-amber-200 text-amber-700 text-xs font-bold rounded-lg shadow-sm">
+                              {knowledge}
+                            </span>
+                          ))}
+                        </div>
+                    </div>
+                  )}
+
+                  {/* Best Opportunity Found */}
+                  {quarterHistory.some(qh => qh.aiResult?.opportunities && qh.aiResult.opportunities.length > 0) && (
+                    <div className="mb-5 p-4 bg-gradient-to-br from-pink-50 to-orange-50 border border-pink-200 rounded-2xl shadow-sm">
+                      <h3 className="text-xs font-black text-pink-500 uppercase tracking-wider mb-3">🚀 Top Opportunity Discovered</h3>
+                      {(() => {
+                        const topOpps = quarterHistory
+                          .flatMap(qh => qh.aiResult?.opportunities || [])
+                          .sort((a, b) => a.confidence === 'high' ? -1 : 1);
+                        const bestOpp = topOpps[0];
+                        if (!bestOpp) return null;
+                        
+                        return (
+                          <div className="bg-white/60 p-4 rounded-xl border border-pink-100 shadow-sm">
+                             <h4 className="font-black text-slate-800 text-lg mb-1">{bestOpp.title}</h4>
+                             <p className="text-sm font-medium text-slate-700">{bestOpp.description}</p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   {/* Quarter-by-Quarter Recap */}
                   <div className="mb-5 space-y-3">
