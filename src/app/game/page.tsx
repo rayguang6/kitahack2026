@@ -2,18 +2,24 @@
 
 import { useState, useEffect } from "react";
 import { useSimulation } from "@/context/SimulationContext";
-import { ActivityCategory } from "@/types";
+import { ActivityCategory, Activity } from "@/types";
 import { 
   Briefcase, Moon, Sun, Plus, Minus, UserPlus, Sparkles, Coffee, 
-  Users, GraduationCap, ChevronRight, Zap as LucideZap, ChevronDown, ChevronUp, Bot
+  Users, GraduationCap, ChevronRight, Zap as LucideZap, ChevronDown, Trophy, RotateCcw
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ActionMentor } from "@/components/Simulation/ActionMentor";
-import { OutcomeModal } from "@/components/Simulation/OutcomeModal";
+import { SIMULATION_DURATION_MS } from "@/constants";
+
+
 
 export default function GamePage() {
   const [activeSidePanel, setActiveSidePanel] = useState<'social' | 'skills' | null>(null);
   const [isSocialExpanded, setIsSocialExpanded] = useState(true);
+  const [simulationQueue, setSimulationQueue] = useState<Activity[]>([]);
+  const [currentSimulationIndex, setCurrentSimulationIndex] = useState(0);
+  const [quarterHistory, setQuarterHistory] = useState<Array<{ quarter: number; activities: Activity[]; aiResult: { narrative: string; insight: string; suggestion: string } | null }>>([]);
+  const [showEndGame, setShowEndGame] = useState(false);
   
   const { 
     phase, setPhase,
@@ -21,23 +27,21 @@ export default function GamePage() {
     workProgress, setWorkProgress,
     workDone, setWorkDone,
     quarter, setQuarter, 
-    workUpdate, activities, updateAllocation, remainingUnits, totalAllocated, canProceed, 
+    workUpdate, activities, updateAllocation, remainingUnits, totalAllocated,
     hobbyUnits, socialUnits,
     newActivityName, setNewActivityName, newActivityCategory, setNewActivityCategory, addCustomActivity,
     newFriendName, setNewFriendName, newFriendGender, setNewFriendGender, newFriendJob, setNewFriendJob, newFriendDesc, setNewFriendDesc, handleAddFriend,
     friends, 
-    skillTags, newSkillName, setNewSkillName, handleAddSkillTag,
+    skillTags, setSkillTags, newSkillName, setNewSkillName, handleAddSkillTag,
     aiResult, setAiResult, setUnlockedOpportunity,
     gamePhase, setGamePhase, setAiActionChoices,
-    selectedAction, setSelectedAction
+    selectedAction, setSelectedAction,
+    name, occupationType, occupationDetail, interests,
+    handleRestart
   } = useSimulation();
 
-  useEffect(() => {
-    if (phase === "work") {
-      setWorkProgress(0);
-      setIsSimulating(false);
-    }
-  }, [phase, quarter]);
+  const hasFriends = friends.length > 0;
+  const effectiveCanProceed = remainingUnits === 0 && hobbyUnits >= 1 && (!hasFriends || socialUnits >= 1);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -55,7 +59,25 @@ export default function GamePage() {
             }
             return prev + 1;
           });
-        }, 50); // 5 seconds total for the simulation
+        }, 20); // 2 seconds for the simulation (20ms * 100)
+      }, 1000); // 1s delay for walking
+    } else if (phase === "freeTime" && gamePhase === "simulating" && isSimulating && selectedAction) {
+      const totalMs = SIMULATION_DURATION_MS; // Consistent 2 seconds (or whatever is set) per action
+      const updateInterval = 50;
+      const stepsCount = totalMs / updateInterval;
+      const stepValue = 100 / stepsCount;
+
+      timeout = setTimeout(() => {
+        interval = setInterval(() => {
+          setWorkProgress(prev => {
+            if (prev + stepValue >= 100) {
+              setIsSimulating(false);
+              clearInterval(interval);
+              return 100;
+            }
+            return prev + stepValue;
+          });
+        }, updateInterval);
       }, 1500); // 1.5s delay for walking
     }
 
@@ -63,7 +85,72 @@ export default function GamePage() {
       if (timeout) clearTimeout(timeout);
       if (interval) clearInterval(interval);
     };
-  }, [phase, isSimulating, setIsSimulating, setWorkProgress]);
+  }, [phase, isSimulating, setIsSimulating, setWorkProgress, gamePhase, selectedAction]);
+
+  // Effect to handle freeTime simulation finish
+  useEffect(() => {
+    if (phase === "freeTime" && gamePhase === "simulating" && !isSimulating && workProgress >= 100) {
+      if (currentSimulationIndex < simulationQueue.length - 1) {
+        // Move to the next simulation
+        const nextIndex = currentSimulationIndex + 1;
+        setCurrentSimulationIndex(nextIndex);
+        const nextActivity = simulationQueue[nextIndex];
+        const actionType = nextActivity.category === 'skill' ? 'learning' : nextActivity.category === 'social' ? 'social' : 'hobby';
+
+        setSelectedAction({
+            title: nextActivity.name,
+            type: actionType,
+            description: `Allocated ${nextActivity.allocated} units of time to ${nextActivity.name}`,
+            allocated: nextActivity.allocated,
+            categoryId: nextActivity.id
+        });
+        setWorkProgress(0);
+        setIsSimulating(true);
+      } else {
+        // Proceed to sleep and evaluate
+        setPhase("sleep");
+        setGamePhase("idle");
+        
+        setAiResult(null);
+        fetch("/api/evaluate-action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            name,
+            occupationType,
+            occupationDetail,
+            skillTags,
+            friends,
+            quarter,
+            activities: simulationQueue,
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          const newResult = {
+            narrative: data.narrative,
+            insight: data.insight || (data.skills_improved?.length > 0 ? `Skills improved: ${data.skills_improved.join(', ')}` : 'You made steady progress this quarter.'),
+            suggestion: data.suggestion || 'Keep building momentum next quarter.'
+          };
+          setAiResult(newResult);
+          setQuarterHistory(prev => [...prev, { quarter, activities: simulationQueue, aiResult: newResult }]);
+          if (data.skills_improved) {
+             setSkillTags((prev: string[]) => Array.from(new Set([...prev, ...data.skills_improved])));
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          const fallback = {
+            narrative: `You spent Quarter ${quarter} working hard and making progress. Every action you took brought you closer to your goals.`,
+            insight: "You showed consistent focus this quarter.",
+            suggestion: "Keep the momentum going into next quarter."
+          };
+          setAiResult(fallback);
+          setQuarterHistory(prev => [...prev, { quarter, activities: simulationQueue, aiResult: fallback }]);
+        });
+      }
+    }
+  }, [phase, gamePhase, isSimulating, workProgress, selectedAction, setAiResult, setPhase, setGamePhase, setSkillTags, currentSimulationIndex, simulationQueue, setSelectedAction, setWorkProgress, setIsSimulating]);
 
   const getCategoryIcon = (cat: ActivityCategory) => {
     switch (cat) {
@@ -80,8 +167,13 @@ export default function GamePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          goal: "Find financial freedom and quit the rat race.", 
-          skills: skillTags 
+          name,
+          occupationType,
+          occupationDetail,
+          skills: skillTags,
+          friends,
+          quarter,
+          interests
         })
       });
       const data = await res.json();
@@ -104,17 +196,29 @@ export default function GamePage() {
       // Auto trigger AI action suggestions when entering free time
       handleConsultAI();
     } else if (phase === "freeTime") {
-      const topActivity = [...activities].sort((a,b) => b.allocated - a.allocated)[0];
-      if (topActivity && topActivity.allocated > 0) {
-        setSelectedAction({
-           title: topActivity.name,
-           type: topActivity.category === 'skill' ? 'learning' : topActivity.category === 'social' ? 'social' : 'coding',
-           description: `Allocated ${topActivity.allocated} units of time to ${topActivity.name}`
-        });
-        setGamePhase("simulating");
-      } else {
-        setPhase("sleep");
-      }
+        const activitiesToSimulate = [...activities].filter(a => a.allocated > 0).sort((a,b) => b.allocated - a.allocated);
+        
+        if (activitiesToSimulate.length > 0) {
+          setSimulationQueue(activitiesToSimulate);
+          setCurrentSimulationIndex(0);
+          
+          const nextActivity = activitiesToSimulate[0];
+          const actionType = nextActivity.category === 'skill' ? 'learning' : nextActivity.category === 'social' ? 'social' : 'hobby';
+          
+          setSelectedAction({
+             title: nextActivity.name,
+             type: actionType,
+             description: `Allocated ${nextActivity.allocated} units of time to ${nextActivity.name}`,
+             allocated: nextActivity.allocated,
+             categoryId: nextActivity.id
+          });
+          
+          setGamePhase("simulating");
+          setWorkProgress(0);
+          setIsSimulating(true);
+        } else {
+          setPhase("sleep");
+        }
     } else {
       // Sleep finishing -> Next Quarter
       if (aiResult?.unlockedOpportunity) {
@@ -129,14 +233,29 @@ export default function GamePage() {
       setQuarter((q) => q + 1);
       setAiResult(null);
       setWorkDone(false);
+      setWorkProgress(0);
+      setIsSimulating(true);
+      setGamePhase("idle");
       setPhase("work");
     }
+  };
+
+  // Player voluntarily chooses to end their journey
+  const handleEndGame = () => {
+    setShowEndGame(true);
+  };
+
+  const handleFullRestart = () => {
+    setShowEndGame(false);
+    setQuarterHistory([]);
+    handleRestart();
   };
 
   return (
     <>
       <ActionMentor />
-      <OutcomeModal />
+      {/* OutcomeModal is now disabled since we show conclusion in sleep phase */}
+      {/* <OutcomeModal /> */}
       
       {/* TOP LEFT HUD */}
       <div className="absolute top-3 md:top-4 left-3 md:left-4 z-50 flex flex-col gap-3 md:gap-4 pointer-events-none max-h-[calc(100vh-120px)] overflow-hidden">
@@ -430,8 +549,8 @@ export default function GamePage() {
           <div className="w-full overflow-y-auto custom-scrollbar rounded-2xl md:rounded-[2rem]" style={{ overscrollBehavior: 'contain' }}>
             <AnimatePresence mode="wait">
               
-              {/* PHASE 1: WORK - PRE START */}
-              {phase === "work" && !isSimulating && !workDone && (
+              {/* PHASE 1: WORK - PRE START (Tutorial - Only shows for Quarter 1) */}
+              {phase === "work" && !isSimulating && !workDone && quarter === 1 && !showEndGame && (
                 <motion.div 
                   key="work-start"
                   initial={{ opacity: 0, y: 30 }}
@@ -443,23 +562,27 @@ export default function GamePage() {
                      <Briefcase className="w-6 h-6 md:w-8 md:h-8 text-indigo-600" />
                   </div>
                   <div>
-                    <h3 className="text-xl md:text-2xl font-black text-slate-900">Ready for Work?</h3>
-                    <p className="text-slate-500 font-bold text-sm md:text-base mt-2">Start your workday.</p>
+                    <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-2">Welcome to Your Freedom Path!</h3>
+                    <div className="max-w-md mx-auto space-y-2 text-sm md:text-base text-slate-600 text-left font-medium bg-white/60 p-4 rounded-xl border border-slate-200 shadow-sm">
+                      <p>✨ <strong>Step 1:</strong> You work a 9-to-5 job to sustain yourself.</p>
+                      <p>✨ <strong>Step 2:</strong> Use your 8 hours of free time wisely to build skills and connections.</p>
+                      <p>✨ <strong>Step 3:</strong> Keep progressing quarter by quarter until you reach financial freedom!</p>
+                    </div>
                   </div>
                   <button
                     onClick={() => {
                       setWorkProgress(0);
                       setIsSimulating(true);
                     }}
-                    className="w-full mt-2 font-bold py-3 md:py-4 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl text-base md:text-lg bg-indigo-600 hover:bg-indigo-500 text-white"
+                    className="w-full mt-4 font-bold py-3 md:py-4 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl text-base md:text-lg bg-indigo-600 hover:bg-indigo-500 text-white"
                   >
-                    Start Workday <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
+                    Start Game <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
                   </button>
                 </motion.div>
               )}
 
               {/* PHASE 1: WORK - only show after work is done (character returned home) */}
-              {phase === "work" && workDone && (
+              {phase === "work" && workDone && !showEndGame && (
                 <motion.div 
                   key="work"
                   initial={{ opacity: 0, y: 30 }}
@@ -493,7 +616,7 @@ export default function GamePage() {
               )}
 
               {/* PHASE 2: FREE TIME (AI & MANUAL ALLOCATION) */}
-              {phase === "freeTime" && (
+              {phase === "freeTime" && gamePhase !== "simulating" && !showEndGame && (
                 <motion.div 
                   key="freeTime"
                   initial={{ opacity: 0, y: 20 }}
@@ -514,42 +637,37 @@ export default function GamePage() {
                       </div>
 
                       {/* Time Unit Progress Box */}
-                      {gamePhase !== "simulating" && (
-                        <div className="flex sm:ml-auto items-center gap-3 bg-indigo-50 border border-indigo-100/60 p-2.5 md:p-3 rounded-xl shadow-inner min-w-[140px] md:min-w-[180px]">
-                          <div className="flex-1">
-                            <div className="flex justify-between items-end mb-1.5">
-                              <span className="text-[10px] md:text-xs font-black uppercase tracking-wider text-indigo-500">Time Units</span>
-                              <span className={`text-xs md:text-sm font-black ${remainingUnits === 0 ? 'text-emerald-600' : 'text-indigo-700'}`}>
-                                {remainingUnits} / 8
-                              </span>
-                            </div>
-                            <div className="h-1.5 md:h-2 bg-indigo-200/50 rounded-full overflow-hidden w-full">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-300 ${remainingUnits === 0 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
-                                style={{ width: `${(remainingUnits / 8) * 100}%` }}
-                              />
-                            </div>
+                      <div className="flex sm:ml-auto items-center gap-3 bg-indigo-50 border border-indigo-100/60 p-2.5 md:p-3 rounded-xl shadow-inner min-w-[140px] md:min-w-[180px]">
+                        <div className="flex-1">
+                          <div className="flex justify-between items-end mb-1.5">
+                            <span className="text-[10px] md:text-xs font-black uppercase tracking-wider text-indigo-500">Time Units</span>
+                            <span className={`text-xs md:text-sm font-black ${remainingUnits === 0 ? 'text-emerald-600' : 'text-indigo-700'}`}>
+                              {remainingUnits} / 8
+                            </span>
+                          </div>
+                          <div className="h-1.5 md:h-2 bg-indigo-200/50 rounded-full overflow-hidden w-full">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-300 ${remainingUnits === 0 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                              style={{ width: `${(remainingUnits / 8) * 100}%` }}
+                            />
                           </div>
                         </div>
-                      )}
-                    </div>
-                    {/* Requirements validation (hide during simulation) */}
-                    {gamePhase !== "simulating" && (
-                      <div className="flex gap-2.5 md:gap-4 text-[10px] md:text-xs font-black bg-slate-50 p-2 md:p-3 rounded-xl border border-slate-100 justify-center min-w-max">
-                        <span className={`flex items-center gap-1 md:gap-1.5 ${hobbyUnits > 0 ? "text-emerald-500" : "text-amber-500"}`}>
-                          {hobbyUnits > 0 ? "✓ 1+ Hobby" : "⚠ Needs 1 Hobby"}
-                        </span>
-                        <div className="w-px h-3 md:h-4 bg-slate-200 self-center" />
-                        <span className={`flex items-center gap-1 md:gap-1.5 ${socialUnits > 0 ? "text-emerald-500" : "text-amber-500"}`}>
-                          {socialUnits > 0 ? "✓ 1+ Social" : "⚠ Needs 1 Social"}
-                        </span>
                       </div>
-                    )}
+                    </div>
+                    {/* Requirements validation (always visible in free-time phase) */}
+                    <div className="flex gap-2.5 md:gap-4 text-[10px] md:text-xs font-black bg-slate-50 p-2 md:p-3 rounded-xl border border-slate-100 justify-center min-w-max">
+                      <span className={`flex items-center gap-1 md:gap-1.5 ${hobbyUnits > 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                        {hobbyUnits > 0 ? "✓ 1+ Hobby" : "⚠ Needs 1 Hobby"}
+                      </span>
+                      <div className="w-px h-3 md:h-4 bg-slate-200 self-center" />
+                      <span className={`flex items-center gap-1 md:gap-1.5 ${socialUnits > 0 ? "text-emerald-500" : (hasFriends ? "text-amber-500" : "text-slate-400")}`}>
+                        {hasFriends ? (socialUnits > 0 ? "✓ 1+ Social" : "⚠ Needs 1 Social") : "○ Social (optional)"}
+                      </span>
+                    </div>
                   </div>
 
-                  {gamePhase !== "simulating" ? (
-                    <>
-                      {/* Activity List */}
+                  <>
+                    {/* Activity List */}
                       <div className="bg-white/50 p-2 md:p-3 rounded-2xl border border-slate-100 shadow-inner overflow-hidden">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 min-h-[30vh] max-h-[40vh] overflow-y-auto custom-scrollbar p-1">
                           {(["skill", "hobby", "social"] as ActivityCategory[]).map(category => {
@@ -659,36 +777,29 @@ export default function GamePage() {
                         </div>
                       </div>
 
+                      {/* Soft hint if player has friends but no social allocation */}
+                      {!effectiveCanProceed && hasFriends && socialUnits === 0 && remainingUnits === 0 && (
+                        <p className="text-center text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-xl py-2 px-3">
+                          ⚠ Hang out with at least one friend this quarter!
+                        </p>
+                      )}
                       <button
                         onClick={handleNextPhase}
-                        disabled={!canProceed}
+                        disabled={!effectiveCanProceed}
                         className={`mt-1 md:mt-2 w-full py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 transition-all font-bold text-base md:text-lg ${
-                          canProceed 
+                          effectiveCanProceed 
                             ? "bg-slate-900 hover:bg-slate-800 text-white shadow-xl hover:shadow-2xl shadow-slate-900/20" 
                             : "bg-slate-200 text-slate-400 cursor-not-allowed"
                         }`}
                       >
                         Start Building Future Freedom!
                       </button>
-                    </>
-                  ) : (
-                    <div className="bg-white/50 p-6 rounded-2xl border border-emerald-100 shadow-inner flex flex-col items-center justify-center text-center space-y-4">
-                      <div className="w-16 h-16 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center shadow-inner animate-pulse">
-                         <Coffee className="w-8 h-8" />
-                      </div>
-                      <div>
-                         <h3 className="text-xl font-bold text-slate-800">Simulating: {selectedAction?.title}</h3>
-                         <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
-                            Watch the map as your character completes this action. The AI will evaluate your progress shortly.
-                         </p>
-                      </div>
-                   </div>
-                  )}
+                  </>
                 </motion.div>
               )}
 
               {/* PHASE 3: SLEEP / AI INSIGHT */}
-              {phase === "sleep" && (
+              {phase === "sleep" && !showEndGame && (
                 <motion.div 
                   key="sleep"
                   initial={{ opacity: 0, scale: 0.95 }}
@@ -706,17 +817,24 @@ export default function GamePage() {
                     </div>
                   </div>
 
+                  {!aiResult && (
+                    <div className="flex flex-col items-center justify-center p-8 space-y-4">
+                      <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
+                      <p className="text-sm font-bold text-slate-500">Evaluating your quarter progress...</p>
+                    </div>
+                  )}
+
                   {aiResult && (
                     <div className="space-y-4 md:space-y-6 mb-5 md:mb-8">
                       <div className="bg-white p-4 md:p-6 rounded-xl md:rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-400" />
-                        <h4 className="text-xs font-black text-indigo-500 uppercase tracking-wider mb-2 md:mb-3">Narrative</h4>
+                        <h4 className="text-xs font-black text-indigo-500 uppercase tracking-wider mb-2 md:mb-3">Quarter Conclusion</h4>
                         <p className="text-slate-800 italic leading-relaxed text-base md:text-lg font-medium">&quot;{aiResult.narrative}&quot;</p>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                         <div className="bg-slate-50 p-4 md:p-5 rounded-xl md:rounded-2xl border border-slate-200 shadow-inner">
-                          <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5 md:mb-2">Insight</h4>
+                          <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5 md:mb-2">Outcome</h4>
                           <p className="text-slate-700 font-bold text-sm md:text-base">{aiResult.insight}</p>
                         </div>
                         <div className="bg-indigo-50 p-4 md:p-5 rounded-xl md:rounded-2xl border border-indigo-100 shadow-inner">
@@ -742,11 +860,134 @@ export default function GamePage() {
                     </div>
                   )}
 
+                  <div className="flex flex-col gap-3">
+                    {/* Primary: keep going or complete */}
+                    {quarter < 3 ? (
+                      <button
+                        onClick={handleNextPhase}
+                        disabled={!aiResult}
+                        className="w-full disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 transition-all shadow-xl hover:shadow-2xl shadow-indigo-600/30 text-base md:text-lg"
+                      >
+                        Continue to Q{quarter + 1} <Sun className="w-5 h-5 md:w-6 md:h-6" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleEndGame}
+                        disabled={!aiResult}
+                        className="w-full disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 transition-all shadow-xl hover:shadow-2xl shadow-emerald-600/30 text-base md:text-lg"
+                      >
+                        Complete Journey & See Summary <Trophy className="w-5 h-5 md:w-6 md:h-6" />
+                      </button>
+                    )}
+
+                    {/* Secondary: voluntary end */}
+                    <button
+                      onClick={handleEndGame}
+                      disabled={!aiResult}
+                      className="w-full disabled:opacity-50 disabled:cursor-not-allowed border-2 border-slate-200 hover:border-amber-400 bg-white hover:bg-amber-50 text-slate-600 hover:text-amber-700 font-bold py-3 md:py-4 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 transition-all text-sm md:text-base"
+                    >
+                      <Trophy className="w-4 h-4 md:w-5 md:h-5" />
+                      I&apos;ve Found My Path — End Journey
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* END-GAME SUMMARY SCREEN */}
+              {showEndGame && (
+                <motion.div
+                  key="endgame"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="w-full glass-morphism rounded-2xl md:rounded-[2rem] p-5 md:p-8 border border-white/60 shadow-2xl bg-white/90 backdrop-blur-xl"
+                >
+                  {/* Header */}
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-3 md:p-4 rounded-xl md:rounded-2xl shadow-lg shrink-0">
+                      <Trophy className="w-7 h-7 md:w-8 md:h-8 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl md:text-3xl font-black text-slate-900">Your Freedom Path</h2>
+                      <p className="text-slate-500 font-bold text-sm">{name ? `${name}'s` : 'Your'} Journey Summary · Q{quarterHistory.length} Completed</p>
+                    </div>
+                  </div>
+
+                  {/* Skills Gained */}
+                  <div className="mb-5 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
+                    <h3 className="text-xs font-black text-indigo-500 uppercase tracking-wider mb-2">⚡ Skills You Built</h3>
+                    {skillTags.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {skillTags.map((skill, i) => (
+                          <span key={i} className="px-3 py-1.5 bg-white border border-indigo-200 text-indigo-700 text-xs font-bold rounded-lg shadow-sm">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-slate-400 text-sm italic">No skills tracked — add them from the Skills panel next time!</p>
+                    )}
+                  </div>
+
+                  {/* Quarter-by-Quarter Recap */}
+                  <div className="mb-5 space-y-3">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">📅 Quarter Recaps</h3>
+                    {quarterHistory.map((qh, i) => (
+                      <div key={i} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-start gap-2 mb-2">
+                          <span className="text-xs font-black text-white bg-indigo-500 px-2 py-0.5 rounded-full shrink-0 mt-0.5">Q{qh.quarter}</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {qh.activities.filter(a => a.allocated > 0).slice(0, 5).map((a, j) => (
+                              <span key={j} className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                a.category === 'skill' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
+                                a.category === 'hobby' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
+                                'bg-pink-50 text-pink-600 border border-pink-100'
+                              }`}>
+                                {a.name} ({a.allocated}h)
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        {qh.aiResult && (
+                          <p className="text-slate-500 text-xs font-medium italic leading-relaxed pl-9">&quot;{qh.aiResult.narrative}&quot;</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Final AI Trajectory */}
+                  {quarterHistory.length > 0 && quarterHistory[quarterHistory.length - 1]?.aiResult && (
+                    <div className="mb-5 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                      <h3 className="text-xs font-black text-emerald-600 uppercase tracking-wider mb-2">🔭 Your Trajectory</h3>
+                      <p className="text-slate-800 font-bold text-sm mb-2">
+                        {quarterHistory[quarterHistory.length - 1].aiResult?.suggestion}
+                      </p>
+                      <p className="text-slate-500 text-xs font-medium">
+                        {quarterHistory[quarterHistory.length - 1].aiResult?.insight}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Network */}
+                  {friends.length > 0 && (
+                    <div className="mb-6 p-4 bg-pink-50 border border-pink-100 rounded-2xl">
+                      <h3 className="text-xs font-black text-pink-500 uppercase tracking-wider mb-2">🤝 Your Network</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {friends.map((f, i) => (
+                          <span key={i} className="text-xs font-bold px-3 py-1.5 bg-white border border-pink-200 text-pink-700 rounded-lg shadow-sm">
+                            {f.name} · {f.job}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Restart */}
                   <button
-                    onClick={handleNextPhase}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 md:py-5 rounded-xl md:rounded-2xl flex items-center justify-center gap-2 md:gap-3 transition-all shadow-xl hover:shadow-2xl shadow-indigo-600/30 text-base md:text-lg"
+                    onClick={handleFullRestart}
+                    className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl flex items-center justify-center gap-3 transition-all shadow-xl text-base"
                   >
-                    Wake Up (Start Quarter {quarter + 1}) <Sun className="w-5 h-5 md:w-6 md:h-6" />
+                    <RotateCcw className="w-5 h-5" />
+                    Play Again — Try a Different Path
                   </button>
                 </motion.div>
               )}

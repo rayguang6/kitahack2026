@@ -27,14 +27,23 @@ const FRIEND_HOUSE_POSITIONS = [
   { x: 1, y: 3 },
   { x: 1, y: 5 },
   { x: 1, y: 7 },
-  { x: 1, y: 9 },
+  { x: 1, y: 10 },
 ];
+
+export const MAP_LOCATIONS = {
+  HOME_SPAWN: { x: 10, y: 3 }, // Center of the rug
+  OFFICE: { x: 17, y: 3 },     // Center of the office
+  DESK: { x: 8, y: 2 },       // At the computer desk
+  HOBBY: { x: 8, y: 4 },  // for implement hobby
+  CAFE: { x: 17, y: 9 },       // Inside the cafe area
+  BED: { x: 11, y: 2 },        // On the bed
+};
 
 export function GameMap() {
   const pathname = usePathname();
   const { 
     gender, occupationType, phase, isSimulating, workProgress, workDone, setWorkDone, friends,
-    gamePhase, selectedAction, setGamePhase, setActionOutcome, skillTags, setSkillTags
+    gamePhase, selectedAction, setGamePhase, setActionOutcome, skillTags, setSkillTags, activities
   } = useSimulation();
   
   const [playerPos, setPlayerPos] = useState({ x: 10, y: 3 }); // Start at home (center shifted)
@@ -110,65 +119,43 @@ export function GameMap() {
   // Automate player movement based on simulation step
   useEffect(() => {
     if (pathname === "/" || pathname?.startsWith("/onboarding")) {
-      moveTo(10, 3); // Spawn at home center
+      moveTo(MAP_LOCATIONS.HOME_SPAWN.x, MAP_LOCATIONS.HOME_SPAWN.y); // Spawn at home center
     } else if (pathname === "/game") {
       if (phase === "work" && isSimulating && !returningHome) {
         // Walk to office when work starts
-        moveTo(17, 3); // Office center
+        moveTo(MAP_LOCATIONS.OFFICE.x, MAP_LOCATIONS.OFFICE.y); // Office center
       } else if (phase === "work" && !isSimulating && workProgress >= 100 && !workDone) {
         // Work finished - walk back home
         setReturningHome(true);
-        moveTo(10, 3); // Walk back home
+        moveTo(MAP_LOCATIONS.HOME_SPAWN.x, MAP_LOCATIONS.HOME_SPAWN.y); // Walk back home
       } else if (phase === "freeTime") {
         if (gamePhase === "simulating" && selectedAction) {
-           if (selectedAction.type === "coding" || selectedAction.type === "learning") {
-              moveTo(9, 3); // desk at home
+           const activityCategory = activities?.find(a => a.id === selectedAction.categoryId)?.category || selectedAction.type;
+           
+           if (activityCategory === "skill" || selectedAction.type === "learning" || selectedAction.type === "coding") {
+              moveTo(MAP_LOCATIONS.DESK.x, MAP_LOCATIONS.DESK.y); // desk at home
+           } else if (activityCategory === "hobby" || selectedAction.type === "hobby") {
+              moveTo(MAP_LOCATIONS.HOBBY.x, MAP_LOCATIONS.HOBBY.y); // Just outside the house door
+           } else if (activityCategory === "social" || selectedAction.type === "social") {
+              const friendIndex = friends.findIndex(f => f.id === selectedAction.categoryId);
+              if (friendIndex >= 0 && friendIndex < FRIEND_HOUSE_POSITIONS.length) {
+                 moveTo(FRIEND_HOUSE_POSITIONS[friendIndex].x + 2, FRIEND_HOUSE_POSITIONS[friendIndex].y);
+              } else {
+                 moveTo(MAP_LOCATIONS.CAFE.x, MAP_LOCATIONS.CAFE.y); // Cafe fallback
+              }
            } else {
-              moveTo(15, 7); // Cafe
+              moveTo(MAP_LOCATIONS.CAFE.x, MAP_LOCATIONS.CAFE.y); // Cafe fallback
            }
         } else {
-          moveTo(10, 3); // Stay home for free time initially
+          moveTo(MAP_LOCATIONS.HOME_SPAWN.x, MAP_LOCATIONS.HOME_SPAWN.y); // Stay home for free time initially
         }
       } else if (phase === "sleep") {
-        moveTo(10, 3); // Home
+        moveTo(MAP_LOCATIONS.BED.x, MAP_LOCATIONS.BED.y); // Bed coordinate inside home
       }
     }
-  }, [pathname, moveTo, phase, isSimulating, workProgress, workDone, returningHome, gamePhase, selectedAction]);
+  }, [pathname, moveTo, phase, isSimulating, workProgress, workDone, returningHome, gamePhase, selectedAction, activities, friends]);
 
-  // AI Action Evaluation trigger
-  useEffect(() => {
-    if (phase === "freeTime" && gamePhase === "simulating" && selectedAction) {
-       const timer = setTimeout(async () => {
-         setGamePhase("evaluating");
-         try {
-            const res = await fetch("/api/evaluate-action", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ 
-                goal: "Find financial freedom and quit the rat race.",
-                actionTitle: selectedAction.title,
-                actionType: selectedAction.type
-              })
-            });
-            const data = await res.json();
-            setActionOutcome({
-              narrative: data.narrative,
-              skills_improved: data.skills_improved
-            });
-            
-            if (data.skills_improved) {
-                const updatedSkills = Array.from(new Set([...skillTags, ...data.skills_improved]));
-                setSkillTags(updatedSkills as string[]);
-            }
-            setGamePhase("showing_outcome");
-         } catch(e) {
-            console.error(e);
-            setGamePhase("idle");
-         }
-       }, 4000); // 4 seconds of walking/simulating
-       return () => clearTimeout(timer);
-    }
-  }, [phase, gamePhase, selectedAction, setGamePhase, setActionOutcome, skillTags, setSkillTags]);
+  // Evaluation is now handled in page.tsx after workProgress reaches 100
 
   // Detect arrival back home after work
   useEffect(() => {
@@ -261,29 +248,29 @@ export function GameMap() {
   return (
     <div 
       ref={containerRef}
-      className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-slate-900" 
-      style={{
-        backgroundImage: "url('/images/backgrounds/loading-bg.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
+      className={`absolute inset-0 z-0 flex items-center justify-center overflow-hidden transition-colors duration-1000 ${
+        phase === "sleep" ? "bg-slate-950" : "bg-slate-900"
+      }`} 
     >
-      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px]" />
       
       {/* The Map */}
       <div 
-        className="relative bg-[#2d4734] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.6)] z-10"
+        className="relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.6)] z-10"
         style={{
           width: tileWidth * MAP_COLS,
           height: tileHeight * MAP_ROWS,
+          backgroundImage: "url('/images/backgrounds/game-map.png')",
+          backgroundSize: '100% 100%',
+          backgroundRepeat: 'no-repeat'
         }}
         onClick={handleMapClick}
       >
-        {/* Map Zones (Placeholders) */}
+        {/* Map Zone Labels (Minimalist) */}
         {MAP_ZONES.map((zone) => (
           <div
             key={zone.id}
-            className={`absolute flex flex-col items-center justify-center border-4 border-dashed rounded-xl z-0 pointer-events-none transition-all duration-300 ${zone.color} ${zone.border}`}
+            className={`absolute flex flex-col items-start justify-start p-2 z-0 pointer-events-none transition-all duration-300`}
             style={{
               left: zone.x * tileWidth,
               top: zone.y * tileHeight,
@@ -291,11 +278,8 @@ export function GameMap() {
               height: zone.h * tileHeight,
             }}
           >
-            <span className="text-white font-bold text-lg drop-shadow-md bg-black/40 px-3 py-1 rounded-full mb-1 flex items-center gap-2">
+            <span className="text-white text-[10px] uppercase tracking-wider font-black drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] bg-black/20 px-2 py-0.5 rounded-sm flex items-center gap-1.5 opacity-40 hover:opacity-100 transition-opacity">
               {zone.name}
-            </span>
-            <span className="text-white/70 text-xs font-mono drop-shadow-md bg-black/40 px-2 py-0.5 rounded cursor-default border border-white/20">
-              x:{zone.x} y:{zone.y}
             </span>
           </div>
         ))}
@@ -316,22 +300,15 @@ export function GameMap() {
                   left: pos.x * tileWidth,
                   top: pos.y * tileHeight,
                   width: tileWidth * 2,
-                  height: tileHeight * 1,
+                  height: tileHeight * 2, // Updated to 2 tiles high to match art
                 }}
               >
-                {/* House zone background */}
-                <div 
-                  className={`absolute inset-0 rounded border-2 border-dashed ${
-                    friend ? 'border-pink-400/60 bg-pink-500/15' : 'border-slate-500/30 bg-slate-500/5'
-                  }`}
-                />
-                
-                {/* Friend name label or empty slot */}
-                <div className="absolute -top-6 left-0 whitespace-nowrap z-10">
-                  <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-md ${
-                    friend ? 'text-white bg-pink-600/80' : 'text-white/30 bg-slate-700/60'
+                {/* Minimalist friend name label */}
+                <div className="absolute -top-1 left-0 whitespace-nowrap z-10">
+                  <span className={`text-[7px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded shadow-sm ${
+                    friend ? 'text-white bg-pink-600/40 backdrop-blur-sm' : 'text-white/20 bg-slate-700/20'
                   }`}>
-                    {friend ? `🏠 ${friend.name}` : `🏠 Empty`}
+                    {friend ? friend.name : `Free Plot`}
                   </span>
                 </div>
 
@@ -359,6 +336,13 @@ export function GameMap() {
             );
           })}
         </AnimatePresence>
+
+        {/* Night Overlay */}
+        <div 
+          className={`absolute inset-0 pointer-events-none z-[8] transition-opacity duration-1000 ${
+            phase === "sleep" ? "opacity-60" : "opacity-0"
+          } bg-indigo-950/40 mix-blend-multiply`}
+        />
 
         {/* Dynamic Grid Pattern */}
         <div 
@@ -413,9 +397,9 @@ export function GameMap() {
           >
             <Sprite 
               src={avatarImageSrc} 
-              direction={playerDir} 
-              isMoving={isMoving} 
-              isAction={!isMoving && currentIdleAction}
+              direction={phase === "sleep" ? "down" : playerDir} 
+              isMoving={phase === "sleep" ? false : isMoving} 
+              isAction={phase === "sleep" ? false : (!isMoving && currentIdleAction)}
               size={Math.min(tileWidth, tileHeight)}
             />
 
@@ -438,7 +422,7 @@ export function GameMap() {
                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
                       <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
-                        Working... {Math.ceil((100 - workProgress) / 20)}s
+                        Working... {Math.ceil((100 - workProgress) / 50)}s
                       </span>
                       <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-b border-r border-slate-200 rotate-45" />
                     </motion.div>
@@ -455,6 +439,41 @@ export function GameMap() {
                     >
                       <span className="text-xs font-bold text-emerald-700 whitespace-nowrap">🏠 Heading home!</span>
                       <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-emerald-50 border-b border-r border-emerald-200 rotate-45" />
+                    </motion.div>
+                  )}
+                  {/* Simulating bubble - during freeTime */}
+                  {phase === "freeTime" && gamePhase === "simulating" && isSimulating && selectedAction && (
+                    <motion.div 
+                      key="simulating-bubble"
+                      initial={{ scale: 0, opacity: 0, y: 5 }}
+                      animate={{ scale: 1, opacity: 1, y: 0 }}
+                      exit={{ scale: 0, opacity: 0, y: 5 }}
+                      className="absolute -top-14 left-1/2 -translate-x-1/2 min-w-[110px] bg-white rounded-2xl px-3 py-2 shadow-xl border border-slate-200 z-50 flex items-center justify-center gap-2"
+                    >
+                      <div className="flex gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+                        {selectedAction.title} - {Math.ceil(((100 - workProgress) / 100) * (selectedAction.allocated || 1))}h
+                      </span>
+                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-b border-r border-slate-200 rotate-45" />
+                    </motion.div>
+                  )}
+                  {/* Sleeping bubble - during sleep phase */}
+                  {phase === "sleep" && !isMoving && (
+                    <motion.div 
+                      key="sleeping-bubble"
+                      initial={{ scale: 0, opacity: 0, y: 5 }}
+                      animate={{ scale: 1, opacity: 1, y: 0 }}
+                      exit={{ scale: 0, opacity: 0, y: 5 }}
+                      className="absolute -top-14 left-1/2 -translate-x-1/2 min-w-[60px] bg-indigo-900 rounded-2xl px-3 py-2 shadow-xl border border-indigo-700 z-50 flex items-center justify-center gap-1"
+                    >
+                      <span className="text-xs font-black text-indigo-200 whitespace-nowrap tracking-widest animate-pulse">
+                        Zzz...
+                      </span>
+                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-indigo-900 border-b border-r border-indigo-700 rotate-45" />
                     </motion.div>
                   )}
                 </>

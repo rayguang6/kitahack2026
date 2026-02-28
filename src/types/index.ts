@@ -10,7 +10,9 @@ export type GamePhase = "idle" | "generating" | "selecting_action" | "simulating
 export type AIActionChoice = {
     title: string;
     description: string;
-    type: "coding" | "learning" | "social";
+    type: "coding" | "learning" | "social" | "hobby";
+    allocated?: number;
+    categoryId?: string;
 };
 
 export type ActionOutcome = {

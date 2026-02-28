@@ -6,9 +6,9 @@ import { Sparkles, Code, BookOpen, Users, Plus, Loader2 } from "lucide-react";
 import { AIActionChoice } from "@/types";
 
 export function ActionMentor() {
-  const { gamePhase, aiActionChoices, setGamePhase, activities, setActivities } = useSimulation();
+  const { gamePhase, aiActionChoices, setGamePhase, activities, setActivities, phase } = useSimulation();
 
-  const isVisible = gamePhase === "generating" || gamePhase === "selecting_action";
+  const isVisible = (gamePhase === "generating" || gamePhase === "selecting_action") && phase === "freeTime";
 
   const handleSelect = (action: AIActionChoice) => {
     // Basic ID generator that does not trigger react strict mode impurity

@@ -20,3 +20,7 @@ export const WORK_UPDATES = [
     "A quiet quarter at the main job provided stability.",
     "You received a minor piece of positive feedback."
 ];
+
+// Game Configuration
+// Total time each activity takes to simulate in milliseconds (2 seconds)
+export const SIMULATION_DURATION_MS = 2000;
