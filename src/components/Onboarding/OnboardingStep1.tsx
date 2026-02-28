@@ -1,16 +1,35 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Briefcase, ArrowRight } from "lucide-react";
+import { Briefcase, ArrowRight, GraduationCap } from "lucide-react";
 import { useSimulation } from "@/context/SimulationContext";
 import { DEFAULT_INTERESTS } from "@/constants";
+import { useRouter } from "next/navigation";
+
+const MaleIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="10" cy="14" r="5" />
+    <line x1="13.54" y1="10.46" x2="21" y2="3" />
+    <line x1="16" y1="3" x2="21" y2="3" />
+    <line x1="21" y1="8" x2="21" y2="3" />
+  </svg>
+);
+
+const FemaleIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="10" r="5" />
+    <line x1="12" y1="15" x2="12" y2="22" />
+    <line x1="9" y1="19" x2="15" y2="19" />
+  </svg>
+);
 
 export function OnboardingStep1() {
+  const router = useRouter();
   const {
     name, setName, age, setAge, gender, setGender,
     occupationType, setOccupationType, occupationDetail, setOccupationDetail,
     interests, customInterest, setCustomInterest,
-    isStudent, toggleInterest, addCustomInterest, setStep
+    isStudent, toggleInterest, addCustomInterest
   } = useSimulation();
 
   return (
@@ -43,41 +62,66 @@ export function OnboardingStep1() {
           <div className="space-y-3">
             <label className="text-sm font-semibold text-slate-700 ml-1">Gender</label>
             <div className="grid grid-cols-2 gap-2">
-              {["Male", "Female"].map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setGender(g as "Male" | "Female")}
-                  className={`py-3 rounded-xl text-sm font-medium transition-all ${
-                    gender === g 
-                      ? "bg-slate-900 text-white shadow-md" 
-                      : "bg-slate-50 border border-slate-200 text-slate-500 hover:border-slate-300"
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
+              <button
+                key="Male"
+                onClick={() => setGender("Male")}
+                className={`py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition-all ${
+                  gender === "Male" 
+                    ? "bg-blue-600 text-white shadow-md" 
+                    : "bg-slate-50 border border-slate-200 text-slate-500 hover:border-blue-300 hover:bg-blue-50"
+                }`}
+              >
+                <MaleIcon className="w-5 h-5" />
+                Male
+              </button>
+              <button
+                key="Female"
+                onClick={() => setGender("Female")}
+                className={`py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition-all ${
+                  gender === "Female" 
+                    ? "bg-pink-500 text-white shadow-md" 
+                    : "bg-slate-50 border border-slate-200 text-slate-500 hover:border-pink-300 hover:bg-pink-50"
+                }`}
+              >
+                <FemaleIcon className="w-5 h-5" />
+                Female
+              </button>
             </div>
           </div>
 
           <div className="space-y-3">
             <label className="text-sm font-semibold text-slate-700 ml-1">Current Status</label>
             <div className="grid grid-cols-2 gap-2">
-              {["Working", "Student"].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => {
-                    setOccupationType(type as "Working" | "Student");
-                    setOccupationDetail("");
-                  }}
-                  className={`py-3 rounded-xl text-sm font-medium transition-all ${
-                    occupationType === type 
-                      ? "bg-indigo-600 text-white shadow-md" 
-                      : "bg-slate-50 border border-slate-200 text-slate-500 hover:border-slate-300"
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
+              <button
+                key="Working"
+                onClick={() => {
+                  setOccupationType("Working");
+                  setOccupationDetail("");
+                }}
+                className={`py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition-all ${
+                  occupationType === "Working" 
+                    ? "bg-indigo-600 text-white shadow-md" 
+                    : "bg-slate-50 border border-slate-200 text-slate-500 hover:border-indigo-300 hover:bg-indigo-50"
+                }`}
+              >
+                <Briefcase className="w-5 h-5" />
+                Working
+              </button>
+              <button
+                key="Student"
+                onClick={() => {
+                  setOccupationType("Student");
+                  setOccupationDetail("");
+                }}
+                className={`py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition-all ${
+                  occupationType === "Student" 
+                    ? "bg-indigo-600 text-white shadow-md" 
+                    : "bg-slate-50 border border-slate-200 text-slate-500 hover:border-indigo-300 hover:bg-indigo-50"
+                }`}
+              >
+                <GraduationCap className="w-5 h-5" />
+                Student
+              </button>
             </div>
           </div>
         </div>
@@ -127,17 +171,17 @@ export function OnboardingStep1() {
             <button onClick={addCustomInterest} className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-semibold hover:bg-slate-900 transition-colors">Add</button>
           </div>
         </div>
-      </div>
 
-      <div className="pt-4 flex justify-center">
-        <button
-          onClick={() => setStep("onboarding-2")}
-          disabled={!name || !age || !gender || !occupationType || !occupationDetail}
-          className="w-full max-w-sm py-4 bg-slate-900 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-        >
-          <span>Continue</span>
-          <ArrowRight className="w-5 h-5" />
-        </button>
+        <div className="pt-4 flex justify-center border-t border-slate-100 mt-6">
+          <button
+            onClick={() => router.push("/onboarding/step-2")}
+            disabled={!name || !age || !gender || !occupationType || !occupationDetail}
+            className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          >
+            <span>Continue</span>
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </motion.div>
   );

@@ -3,21 +3,46 @@
 import { motion } from "framer-motion";
 import { useSimulation } from "@/context/SimulationContext";
 import { User, ShieldCheck, Zap, LogOut } from "lucide-react";
+import { GameMap } from "@/components/Map/GameMap";
+import { usePathname, useRouter } from "next/navigation";
 
 export function GameShell({ children }: { children: React.ReactNode }) {
   const { name, occupationType, quarter, handleRestart } = useSimulation();
+  const pathname = usePathname();
+  const router = useRouter();
+  
+  const isGameActive = pathname === "/game";
+  const isLanding = pathname === "/";
 
   return (
-    <div className="game-viewport h-screen overflow-hidden bg-slate-50 flex flex-col relative font-sans">
-      {/* Dynamic Background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-slate-900 flex flex-col font-sans">
+      {/* 2D Map Background */}
+      {isGameActive && <GameMap />}
+
+      {/* Loading Background for Landing Page */}
+      {isLanding && (
+        <div 
+          className="absolute inset-0 z-0 transition-opacity duration-1000"
+          style={{
+            backgroundImage: "url('/images/backgrounds/loading-bg.png')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="absolute inset-0 bg-slate-950/40" />
+        </div>
+      )}
+
+      {/* Dynamic Background Overlay */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden mix-blend-screen opacity-50 z-10">
         <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-indigo-500/10 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-5%] right-[-5%] w-[30%] h-[30%] bg-emerald-500/10 blur-[120px] rounded-full" />
       </div>
 
       {/* Header HUD */}
-      <header className="relative z-50 flex items-center justify-between px-6 py-4 glass-morphism border-b border-slate-200">
-        <div className="flex items-center gap-4">
+      {isGameActive && (
+        <header className="relative z-50 flex items-center justify-between px-6 py-4 glass-morphism border-b border-slate-200">
+          <div className="flex items-center gap-4">
           <div className="bg-slate-900 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg">
              <Zap className="w-5 h-5 text-yellow-400 fill-yellow-400" />
           </div>
@@ -54,13 +79,17 @@ export function GameShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <button 
-          onClick={handleRestart}
+          onClick={() => {
+            handleRestart();
+            router.push("/");
+          }}
           className="p-2 rounded-lg text-slate-400 hover:text-red-500 transition-all"
           title="Restart"
         >
           <LogOut className="w-5 h-5" />
         </button>
       </header>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 relative overflow-hidden flex flex-col">
@@ -68,14 +97,16 @@ export function GameShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-50 px-6 py-3 border-t border-slate-200 glass-morphism text-[10px] font-semibold text-slate-400 flex justify-between items-center">
-         <div>
-           Freedom Path v1.0
-         </div>
-         <div className="flex items-center gap-4">
-           Life Simulation
-         </div>
-      </footer>
+      {isGameActive && (
+        <footer className="relative z-50 px-6 py-3 border-t border-slate-200 glass-morphism text-[10px] font-semibold text-slate-400 flex justify-between items-center">
+           <div>
+             Freedom Path v1.0
+           </div>
+           <div className="flex items-center gap-4">
+             Life Simulation
+           </div>
+        </footer>
+      )}
     </div>
   );
 }

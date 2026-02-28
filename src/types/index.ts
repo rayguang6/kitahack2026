@@ -1,4 +1,4 @@
-export type Step = "onboarding-1" | "onboarding-2" | "quarter" | "simulation" | "sleep" | "end";
+export type Step = "landing" | "onboarding-1" | "onboarding-2" | "game_map";
 export type ActivityCategory = "skill" | "hobby" | "social";
 export type Activity = { id: string; name: string; category: ActivityCategory; allocated: number; isOpportunity?: boolean };
 export type Friend = { id: string; name: string; job: string; desc?: string };

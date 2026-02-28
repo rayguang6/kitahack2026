@@ -16,5 +16,5 @@
 }
 
 .game-viewport {
-  @apply relative h-full w-full max-w-[1400px] mx-auto overflow-hidden flex flex-col;
+  @apply relative h-full w-full overflow-hidden flex flex-col;
 }

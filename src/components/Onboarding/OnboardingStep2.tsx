@@ -4,11 +4,13 @@ import { motion } from "framer-motion";
 import { Brain, ChevronLeft, ArrowRight, Zap } from "lucide-react";
 import { useSimulation } from "@/context/SimulationContext";
 import { MBTI_TYPES, SOCIAL_PREFS } from "@/constants";
+import { useRouter } from "next/navigation";
 
 export function OnboardingStep2() {
+  const router = useRouter();
   const {
     bio, setBio, mbti, setMbti, socialPref, setSocialPref,
-    setStep, startQuarter1
+    startQuarter1
   } = useSimulation();
 
   return (
@@ -22,7 +24,7 @@ export function OnboardingStep2() {
     >
       <div className="text-center space-y-2 relative">
         <button 
-          onClick={() => setStep("onboarding-1")} 
+          onClick={() => router.push("/onboarding")} 
           className="absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all text-slate-500 shadow-sm"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -85,16 +87,19 @@ export function OnboardingStep2() {
             ))}
           </div>
         </div>
-      </div>
 
-      <div className="pt-4 flex justify-center">
-        <button
-          onClick={startQuarter1}
-          className="w-full max-w-sm py-4 bg-emerald-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:bg-emerald-700 transition-all"
-        >
-          <span>Start Game</span>
-          <ArrowRight className="w-5 h-5" />
-        </button>
+        <div className="pt-4 flex justify-center border-t border-slate-100 mt-6">
+          <button
+            onClick={() => {
+              startQuarter1();
+              router.push("/game");
+            }}
+            className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:bg-emerald-700 transition-all"
+          >
+            <span>Start Game</span>
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </motion.div>
   );
