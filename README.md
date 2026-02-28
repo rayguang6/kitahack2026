@@ -126,3 +126,38 @@ Freedom Path AI leverages the Google Gemini model not as a chatbot, but as an em
 - **Effort-Based Progression:** The core loop rewards intentional time management and skill acquisition over random luck or arbitrary choices.
 - **Avoiding Unrealistic Wealth Narratives:** Prompt engineering strictly inhibits "get rich quick" outcomes, focusing heavily on sustainable growth and realistic friction.
 - **Promoting Sustainable Growth:** Aligned tightly with SDG 8, the simulation emphasizes that true mobility comes from acquiring adaptable skills and fostering meaningful networks over time.
+
+---
+
+## 11. Installation & Getting Started
+
+### Prerequisites
+- Node.js (v18+)
+- npm or yarn
+- Google Gemini API Key
+
+### Quick Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/your-username/freedom-path.git
+   cd freedom-path
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables:**
+   Create a `.env.local` file in the root directory and add your Google Gemini API key:
+   ```env
+   GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+
+4. **Run the development server:**
+   ```bash
+   npm run dev
+   ```
+
+5. Open [http://localhost:3000](http://localhost:3000) with your browser to see the simulation in action.
