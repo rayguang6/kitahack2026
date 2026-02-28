@@ -13,7 +13,7 @@ export function LandingPage() {
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 1.05 }}
-      className="flex flex-col items-center justify-center w-full max-w-lg mx-auto bg-slate-900/40 backdrop-blur-md text-slate-50 p-10 rounded-3xl shadow-2xl relative overflow-hidden border border-white/10"
+      className="flex flex-col items-center justify-center w-full max-w-lg m-auto bg-slate-900/40 backdrop-blur-md text-slate-50 p-10 rounded-3xl shadow-2xl relative overflow-hidden border border-white/10"
     >
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-emerald-500/10 pointer-events-none" />
       

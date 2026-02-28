@@ -20,7 +20,7 @@ export function OnboardingStep2() {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="w-full max-w-2xl space-y-8"
+      className="w-full max-w-2xl space-y-6"
     >
       <div className="text-center space-y-2 relative">
         <button 
@@ -33,14 +33,14 @@ export function OnboardingStep2() {
         <p className="text-slate-500 font-medium">Tell us more about yourself <span className="text-slate-400 font-normal">(Optional)</span></p>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-lg space-y-8">
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-lg space-y-6">
         <div className="space-y-3">
           <label className="text-sm font-semibold text-slate-700 ml-1">Biography</label>
           <textarea 
             value={bio} 
             onChange={e => setBio(e.target.value)} 
             placeholder="Describe your goals or personality..." 
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none h-32 resize-none transition-all placeholder:text-slate-400"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none h-24 resize-none transition-all placeholder:text-slate-400"
           />
         </div>
 

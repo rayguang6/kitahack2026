@@ -17,8 +17,8 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-stretch p-4 sm:p-8">
-      <div className="w-full flex bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-xl">
+    <div className="w-full max-h-full max-w-7xl m-auto flex items-stretch p-4 sm:p-8">
+      <div className="w-full flex bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-xl max-h-full">
         
         {/* Left Form Area */}
         <div className="flex-1 p-4 sm:p-8 md:p-12 lg:p-16 flex flex-col items-center justify-center overflow-y-auto">

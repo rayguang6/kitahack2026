@@ -39,15 +39,15 @@ export function OnboardingStep1() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="w-full max-w-2xl space-y-8"
+      className="w-full max-w-2xl space-y-6"
     >
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-slate-900">Character Creation</h1>
         <p className="text-slate-500 font-medium">Please enter your basic details</p>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-lg space-y-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-lg space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700 ml-1">Name</label>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400" placeholder="Your Name" />
@@ -58,7 +58,7 @@ export function OnboardingStep1() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-3">
             <label className="text-sm font-semibold text-slate-700 ml-1">Gender</label>
             <div className="grid grid-cols-2 gap-2">
