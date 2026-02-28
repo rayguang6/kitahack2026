@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Step, ActivityCategory, Activity, Friend, AIResult, QuarterResult } from "@/types";
+import { Step, ActivityCategory, Activity, Friend, AIResult, QuarterResult, GamePhase, AIActionChoice, ActionOutcome } from "@/types";
 import { WORK_UPDATES } from "@/constants";
 
 function generateId() {
@@ -23,6 +23,16 @@ interface SimulationContextType {
   setWorkProgress: React.Dispatch<React.SetStateAction<number>>;
   workDone: boolean;
   setWorkDone: React.Dispatch<React.SetStateAction<boolean>>;
+  
+  // Core AI Loop
+  gamePhase: GamePhase;
+  setGamePhase: React.Dispatch<React.SetStateAction<GamePhase>>;
+  aiActionChoices: AIActionChoice[];
+  setAiActionChoices: React.Dispatch<React.SetStateAction<AIActionChoice[]>>;
+  selectedAction: AIActionChoice | null;
+  setSelectedAction: React.Dispatch<React.SetStateAction<AIActionChoice | null>>;
+  actionOutcome: ActionOutcome | null;
+  setActionOutcome: React.Dispatch<React.SetStateAction<ActionOutcome | null>>;
   
   // Player Profile
   name: string; setName: React.Dispatch<React.SetStateAction<string>>;
@@ -86,12 +96,18 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   const [workProgress, setWorkProgress] = useState<number>(0);
   const [workDone, setWorkDone] = useState<boolean>(false);
   
+  // Core AI Loop States
+  const [gamePhase, setGamePhase] = useState<GamePhase>("idle");
+  const [aiActionChoices, setAiActionChoices] = useState<AIActionChoice[]>([]);
+  const [selectedAction, setSelectedAction] = useState<AIActionChoice | null>(null);
+  const [actionOutcome, setActionOutcome] = useState<ActionOutcome | null>(null);
+  
   // Profile
-  const [name, setName] = useState("");
-  const [age, setAge] = useState("");
+  const [name, setName] = useState("Alex");
+  const [age, setAge] = useState("24");
   const [gender, setGender] = useState<"Male" | "Female" | "">("Male");
   const [occupationType, setOccupationType] = useState<"Student" | "Working" | "">("Working");
-  const [occupationDetail, setOccupationDetail] = useState("");
+  const [occupationDetail, setOccupationDetail] = useState("Software Engineer");
   const [bio, setBio] = useState("");
   const [mbti, setMbti] = useState("");
   const [socialPref, setSocialPref] = useState("");
@@ -107,7 +123,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
 
   // Forms
   const [newActivityName, setNewActivityName] = useState("");
-  const [newActivityCategory, setNewActivityCategory] = useState<ActivityCategory>("hobby");
+  const [newActivityCategory, setNewActivityCategory] = useState<ActivityCategory>("skill");
 
   // Friend Form
   const [showFriendPanel, setShowFriendPanel] = useState(false);
@@ -130,9 +146,13 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
       const initialSuggestions: Activity[] = [];
       const coreSkill = skillTags.length > 0 ? skillTags[0] : "Productivity";
       
-      initialSuggestions.push({ id: generateId(), name: `Deep dive into ${coreSkill}`, category: "skill", allocated: 0 });
-      initialSuggestions.push({ id: generateId(), name: "Local networking event", category: "social", allocated: 0 });
-      initialSuggestions.push({ id: generateId(), name: "Exercise or casual hobby", category: "hobby", allocated: 0 });
+      initialSuggestions.push({ id: generateId(), name: `Master ${coreSkill}`, category: "skill", allocated: 0 });
+      initialSuggestions.push({ id: generateId(), name: "exercise", category: "hobby", allocated: 0 });
+      initialSuggestions.push({ id: generateId(), name: "watch drama", category: "hobby", allocated: 0 });
+      initialSuggestions.push({ id: generateId(), name: "play game", category: "hobby", allocated: 0 });
+      friends.forEach((f) => {
+        initialSuggestions.push({ id: f.id, name: f.name, category: "social", allocated: 0 });
+      });
 
       if (unlockedOpportunity) {
         initialSuggestions.unshift({ ...unlockedOpportunity, id: generateId(), allocated: 0, isOpportunity: true });
@@ -171,6 +191,7 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
       { id: generateId(), name: newActivityName, category: newActivityCategory, allocated: 0 },
     ]);
     setNewActivityName("");
+    setNewActivityCategory("skill");
   };
 
   const updateAllocation = (id: string, delta: number) => {
@@ -191,7 +212,9 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   const handleAddFriend = () => {
     if (!newFriendName.trim() || !newFriendJob.trim()) return;
     if (friends.length >= 5) return; // Max 5 friends
-    setFriends([...friends, { id: generateId(), name: newFriendName, gender: newFriendGender, job: newFriendJob, desc: newFriendDesc.trim() || undefined }]);
+    const newId = generateId();
+    setFriends([...friends, { id: newId, name: newFriendName, gender: newFriendGender, job: newFriendJob, desc: newFriendDesc.trim() || undefined }]);
+    setActivities((prev) => [...prev, { id: newId, name: newFriendName, category: "social", allocated: 0 }]);
     setNewFriendName("");
     setNewFriendGender("Male");
     setNewFriendJob("");
@@ -238,6 +261,11 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
     isSimulating, setIsSimulating,
     workProgress, setWorkProgress,
     workDone, setWorkDone,
+
+    gamePhase, setGamePhase,
+    aiActionChoices, setAiActionChoices,
+    selectedAction, setSelectedAction,
+    actionOutcome, setActionOutcome,
     name, setName, age, setAge, gender, setGender,
     occupationType, setOccupationType, occupationDetail, setOccupationDetail,
     bio, setBio, mbti, setMbti, socialPref, setSocialPref,

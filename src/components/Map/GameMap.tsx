@@ -32,7 +32,10 @@ const FRIEND_HOUSE_POSITIONS = [
 
 export function GameMap() {
   const pathname = usePathname();
-  const { gender, occupationType, phase, isSimulating, workProgress, workDone, setWorkDone, friends } = useSimulation();
+  const { 
+    gender, occupationType, phase, isSimulating, workProgress, workDone, setWorkDone, friends,
+    gamePhase, selectedAction, setGamePhase, setActionOutcome, skillTags, setSkillTags
+  } = useSimulation();
   
   const [playerPos, setPlayerPos] = useState({ x: 10, y: 3 }); // Start at home (center shifted)
   const [playerDir, setPlayerDir] = useState<Direction>("down");
@@ -117,12 +120,55 @@ export function GameMap() {
         setReturningHome(true);
         moveTo(10, 3); // Walk back home
       } else if (phase === "freeTime") {
-        moveTo(10, 3); // Stay home for free time
+        if (gamePhase === "simulating" && selectedAction) {
+           if (selectedAction.type === "coding" || selectedAction.type === "learning") {
+              moveTo(9, 3); // desk at home
+           } else {
+              moveTo(15, 7); // Cafe
+           }
+        } else {
+          moveTo(10, 3); // Stay home for free time initially
+        }
       } else if (phase === "sleep") {
         moveTo(10, 3); // Home
       }
     }
-  }, [pathname, moveTo, phase, isSimulating, workProgress, workDone, returningHome]);
+  }, [pathname, moveTo, phase, isSimulating, workProgress, workDone, returningHome, gamePhase, selectedAction]);
+
+  // AI Action Evaluation trigger
+  useEffect(() => {
+    if (phase === "freeTime" && gamePhase === "simulating" && selectedAction) {
+       const timer = setTimeout(async () => {
+         setGamePhase("evaluating");
+         try {
+            const res = await fetch("/api/evaluate-action", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ 
+                goal: "Find financial freedom and quit the rat race.",
+                actionTitle: selectedAction.title,
+                actionType: selectedAction.type
+              })
+            });
+            const data = await res.json();
+            setActionOutcome({
+              narrative: data.narrative,
+              skills_improved: data.skills_improved
+            });
+            
+            if (data.skills_improved) {
+                const updatedSkills = Array.from(new Set([...skillTags, ...data.skills_improved]));
+                setSkillTags(updatedSkills as string[]);
+            }
+            setGamePhase("showing_outcome");
+         } catch(e) {
+            console.error(e);
+            setGamePhase("idle");
+         }
+       }, 4000); // 4 seconds of walking/simulating
+       return () => clearTimeout(timer);
+    }
+  }, [phase, gamePhase, selectedAction, setGamePhase, setActionOutcome, skillTags, setSkillTags]);
 
   // Detect arrival back home after work
   useEffect(() => {

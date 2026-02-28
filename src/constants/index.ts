@@ -1,6 +1,5 @@
 export const DEFAULT_INTERESTS = [
-    "Coding", "Editing", "Cooking", "Sports", "Gaming",
-    "Music", "Trading", "Writing", "Design", "Fitness", "Business"
+    "exercise", "watch drama", "play game"
 ];
 
 export const MBTI_TYPES = [
