@@ -2,6 +2,8 @@
 
 > **An AI-Powered Economic Simulation Platform**
 > Built for KitaHack 2026 | Aligned with SDG 8 (Decent Work and Economic Growth)
+>
+> https://kitahack2026--kitahack2026-2437b.asia-southeast1.hosted.app/
 
 ---
 
